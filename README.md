@@ -1,2 +1,3 @@
 # Spotify-Album-Finder
-Calling upon Spotify api to fetch album details and link.
+
+Calling upon Spotify api to fetch artist discography details and link.

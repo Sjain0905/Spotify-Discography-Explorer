@@ -1,229 +1,204 @@
+import { useState, useEffect, useCallback } from 'react';
 import './App.css';
-import {
-  FormControl,
-  InputGroup,
-  Container,
-  Button,
-  Card,
-  Row,
-} from 'react-bootstrap';
-import { useState, useEffect } from 'react';
 
 const clientId = import.meta.env.VITE_CLIENT_ID;
 const clientSecret = import.meta.env.VITE_CLIENT_SECRET;
 
-function App() {
-  const [searchInput, setSearchInput] = useState('');
+// ─── Custom hook: Spotify auth token ─────────────────────────────────────────
+function useSpotifyToken() {
   const [accessToken, setAccessToken] = useState('');
-  const [albums, setAlbums] = useState([]);
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     if (!clientId || !clientSecret) {
-      console.error('Missing Spotify client ID or secret. Check .env file.');
+      setAuthError('Missing Spotify credentials. Check your .env file.');
       return;
     }
 
-    const authParams = {
+    fetch('https://accounts.spotify.com/api/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         Authorization: 'Basic ' + btoa(`${clientId}:${clientSecret}`),
       },
       body: 'grant_type=client_credentials',
-    };
-
-    fetch('https://accounts.spotify.com/api/token', authParams)
-      .then(async (result) => {
-        const data = await result.json();
-        console.log('Access token response:', data);
-        if (!result.ok) {
-          throw new Error(
-            data.error_description ||
-              data.error ||
-              'Spotify token request failed',
-          );
-        }
-        return data;
-      })
+    })
+      .then((res) => res.json())
       .then((data) => {
-        setAccessToken(data.access_token);
+        if (data.access_token) setAccessToken(data.access_token);
+        else throw new Error(data.error_description || 'Auth failed');
       })
-      .catch((error) => {
-        console.error('Error getting access token:', error);
-      });
+      .catch((err) => setAuthError(err.message));
   }, []);
 
-  async function search() {
-    console.log('Search input:', searchInput);
-    console.log('Access token:', accessToken);
-    if (!accessToken) {
-      console.error('No access token available');
-      return;
-    }
-    var artistParams = {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + accessToken,
-      },
-    };
+  return { accessToken, authError };
+}
 
-    try {
-      // Get Artist
-      var artistID = await fetch(
-        'https://api.spotify.com/v1/search?q=' +
-          encodeURIComponent(searchInput) +
-          '&type=artist',
-        artistParams,
-      )
-        .then((result) => {
-          console.log('Artist search response status:', result.status);
-          return result.json();
-        })
-        .then((data) => {
-          console.log('Artist search data:', data);
-          if (
-            data.artists &&
-            data.artists.items &&
-            data.artists.items.length > 0
-          ) {
-            return data.artists.items[0].id;
-          } else {
-            console.error('No artists found');
-            return null;
-          }
-        });
+// ─── Spotify API helpers ──────────────────────────────────────────────────────
+async function fetchArtistId(query, token) {
+  const res = await fetch(
+    `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=artist&limit=1`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Artist search failed');
+  return data.artists?.items?.[0]?.id ?? null;
+}
 
-      if (!artistID) {
-        setAlbums([]);
-        return;
-      }
+async function fetchArtistAlbums(artistId, token) {
+  const url = new URL(`https://api.spotify.com/v1/artists/${artistId}/albums`);
+  url.searchParams.set('include_groups', 'album');
+  url.searchParams.set('limit', '10');
 
-      // Get Artist Albums
-      await fetch(
-        'https://api.spotify.com/v1/artists/' +
-          artistID +
-          '/albums?include_groups=album&market=US&limit=10',
-        artistParams,
-      )
-        .then(async (result) => {
-          console.log('Albums response status:', result.status);
-          const data = await result.json();
-          if (!result.ok) {
-            console.error('Albums fetch error body:', data);
-            throw new Error(data.error?.message || 'Albums request failed');
-          }
-          return data;
-        })
-        .then((data) => {
-          console.log('Albums data:', data);
-          setAlbums(data.items || []);
-        });
-    } catch (error) {
-      console.error('Error in search:', error);
-      setAlbums([]);
-    }
-  }
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Albums fetch failed');
+  return data.items ?? [];
+}
+
+// ─── AlbumCard component ──────────────────────────────────────────────────────
+function AlbumCard({ album }) {
+  const imageUrl = album.images?.[0]?.url;
+  const releaseYear = album.release_date?.slice(0, 4) ?? '—';
 
   return (
-    <>
-      <Container
-        style={{
-          marginBottom: '30px',
-        }}>
-        <InputGroup>
-          <FormControl
-            placeholder="Search For Artist"
-            type="input"
-            aria-label="Search for an Artist"
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') {
-                search();
-              }
-            }}
-            onChange={(event) => setSearchInput(event.target.value)}
-            style={{
-              width: '300px',
-              height: '35px',
-              borderWidth: '0px',
-              borderStyle: 'solid',
-              borderRadius: '5px',
-              marginRight: '10px',
-              paddingLeft: '10px',
-            }}
-          />
-
-          <Button onClick={search}>Search</Button>
-        </InputGroup>
-      </Container>
-
-      <Container>
-        <Row
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'space-around',
-            alignContent: 'center',
-          }}>
-          {albums.map((album) => {
-            return (
-              <Card
-                key={album.id}
-                style={{
-                  backgroundColor: 'white',
-                  margin: '10px',
-                  borderRadius: '5px',
-                  marginBottom: '30px',
-                }}>
-                <Card.Img
-                  width={200}
-                  src={album.images[0].url}
-                  style={{
-                    borderRadius: '4%',
-                  }}
-                />
-
-                <Card.Body>
-                  <Card.Title
-                    style={{
-                      whiteSpace: 'wrap',
-                      fontWeight: 'bold',
-                      maxWidth: '200px',
-                      fontSize: '18px',
-                      marginTop: '10px',
-                      color: 'black',
-                    }}>
-                    {album.name}
-                  </Card.Title>
-
-                  <Card.Text
-                    style={{
-                      color: 'black',
-                    }}>
-                    Release Date: <br /> {album.release_date}
-                  </Card.Text>
-
-                  <Button
-                    href={album.external_urls.spotify}
-                    style={{
-                      backgroundColor: 'black',
-                      color: 'white',
-                      fontWeight: 'bold',
-                      fontSize: '15px',
-                      borderRadius: '5px',
-                      padding: '10px',
-                    }}>
-                    Album Link
-                  </Button>
-                </Card.Body>
-              </Card>
-            );
-          })}
-        </Row>
-      </Container>
-    </>
+    <article className="album-card">
+      <a
+        href={album.external_urls.spotify}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="album-card__link"
+        aria-label={`Open ${album.name} on Spotify`}>
+        <div className="album-card__img-wrap">
+          {imageUrl ? (
+            <img src={imageUrl} alt={`${album.name} cover`} loading="lazy" />
+          ) : (
+            <div className="album-card__img-placeholder">No Image</div>
+          )}
+          <div className="album-card__overlay">
+            <span className="album-card__open-icon">↗</span>
+          </div>
+        </div>
+        <div className="album-card__body">
+          <p className="album-card__year">{releaseYear}</p>
+          <h3 className="album-card__title">{album.name}</h3>
+        </div>
+      </a>
+    </article>
   );
 }
 
-export default App;
+// ─── App ──────────────────────────────────────────────────────────────────────
+export default function App() {
+  const { accessToken, authError } = useSpotifyToken();
+
+  const [searchInput, setSearchInput] = useState('');
+  const [albums, setAlbums] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [searched, setSearched] = useState(false);
+
+  const search = useCallback(async () => {
+    const query = searchInput.trim();
+    if (!query || !accessToken) return;
+
+    setIsLoading(true);
+    setSearchError('');
+    setAlbums([]);
+    setSearched(true);
+
+    try {
+      const artistId = await fetchArtistId(query, accessToken);
+      if (!artistId) {
+        setSearchError(`No artist found for "${query}".`);
+        return;
+      }
+      const results = await fetchArtistAlbums(artistId, accessToken);
+      setAlbums(results);
+      if (results.length === 0)
+        setSearchError('No albums found for this artist.');
+    } catch (err) {
+      setSearchError(err.message || 'Something went wrong.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchInput, accessToken]);
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') search();
+  };
+
+  return (
+    <div className="page">
+      {/* Header */}
+      <header className="page__header">
+        <div className="header__inner">
+          <span className="header__logo">
+            <i className="fab fa-spotify fa-3x"></i>
+          </span>
+          <h1 className="header__title">Discography Explorer</h1>
+          <p className="header__sub">
+            Discover an artist's discography via Spotify
+          </p>
+        </div>
+      </header>
+
+      {/* Search bar */}
+      <section className="search-section">
+        <div className="search-bar">
+          <input
+            className="search-bar__input"
+            type="text"
+            placeholder="Search for an artist…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            aria-label="Artist name"
+            disabled={!accessToken && !authError}
+          />
+          <button
+            className="search-bar__btn"
+            onClick={search}
+            disabled={isLoading || !accessToken || !searchInput.trim()}
+            aria-label="Search">
+            {isLoading ? <span className="spinner" /> : 'Search'}
+          </button>
+        </div>
+
+        {authError && <p className="msg msg--error">{authError}</p>}
+        {searchError && <p className="msg msg--error">{searchError}</p>}
+      </section>
+
+      {/* Results */}
+      <main className="results">
+        {isLoading && (
+          <div className="results__loading">
+            <span className="big-spinner" />
+            <p>Loading albums…</p>
+          </div>
+        )}
+
+        {!isLoading && albums.length > 0 && (
+          <>
+            <p className="results__count">{albums.length} albums found</p>
+            <div className="album-grid">
+              {albums.map((album) => (
+                <AlbumCard key={album.id} album={album} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {!isLoading && !searched && (
+          <div className="results__empty">
+            <p className="results__hint">
+              Deep-Dive into your Artist's Discography 💽
+            </p>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
