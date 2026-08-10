@@ -1,7 +1,16 @@
-<h1 align="center">Spotify Discography Explorer <img src="./assets/spotify.svg" alt="spotify" height="29px" width="29px"></h1>
+<h1 align="center">
+  <img src="./assets/spotify.svg" alt="spotify" height="29px" width="29px">
+  Spotify Discography Explorer
+</h1>
 
 <p align="center">
   Search any artist and instantly browse their album discography — cover art, release year, and a direct link to open each album on Spotify.
+</p>
+
+<p align="center">
+  <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
 ---
@@ -16,10 +25,12 @@
 
 ## Tech Stack
 
-- [React 18](https://react.dev/) + [Vite](https://vitejs.dev/)
-- [React-Bootstrap](https://react-bootstrap.github.io/) / [Bootstrap 5](https://getbootstrap.com/)
-- [Font Awesome](https://fontawesome.com/) (via CDN, for the Spotify icon)
-- [Spotify Web API](https://developer.spotify.com/documentation/web-api) — Client Credentials flow
+| Layer      | Tools |
+|------------|-------|
+| UI         | [React 18](https://react.dev/), [React-Bootstrap](https://react-bootstrap.github.io/) / [Bootstrap 5](https://getbootstrap.com/) |
+| Build tool | [Vite](https://vitejs.dev/) |
+| Icons      | [Font Awesome](https://fontawesome.com/) (CDN) |
+| Data       | [Spotify Web API](https://developer.spotify.com/documentation/web-api) — Client Credentials flow |
 
 ## How It Works
 
@@ -28,10 +39,51 @@
 3. It then calls `GET /v1/artists/{id}/albums` (filtered to `include_groups=album`) to fetch up to 10 albums.
 4. Each result is rendered as a card with cover art, release year, and a link to the album on Spotify.
 
-## Prerequisites
+## Getting Started
+
+### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18 or later
 - A [Spotify Developer](https://developer.spotify.com/dashboard) account with an app created, so you have a **Client ID** and **Client Secret**
+
+### Installation
+
+```bash
+# clone the repo
+git clone https://github.com/Sjain0905/Spotify-Discography-Explorer.git
+cd Spotify-Discography-Explorer
+
+# install dependencies
+npm install
+```
+
+### Configure environment variables
+
+Create a `.env` file in the project root:
+
+```env
+VITE_CLIENT_ID=your_spotify_client_id
+VITE_CLIENT_SECRET=your_spotify_client_secret
+```
+
+> `.env` is already listed in `.gitignore`, so your credentials won't be committed.
+
+### Run locally
+
+```bash
+npm run dev
+```
+
+The app will be available at `http://localhost:5173` by default.
+
+### Other scripts
+
+| Command           | Description                          |
+|--------------------|---------------------------------------|
+| `npm run dev`      | Start the Vite dev server             |
+| `npm run build`    | Build for production                  |
+| `npm run preview`  | Preview the production build locally  |
+| `npm run lint`     | Run ESLint                            |
 
 ## Project Structure
 
@@ -47,7 +99,6 @@ Spotify-Discography-Explorer/
 │   └── main.jsx                     # React entry point
 ├── index.html
 ├── vite.config.js
-├── .env.example                     # template for required env vars
 ├── .gitignore
 └── package.json
 ```
@@ -57,3 +108,4 @@ Spotify-Discography-Explorer/
 - Album results are capped at 10 per artist (`limit=10` in the API call).
 - Search returns the top-matching artist only — there's no artist disambiguation UI if multiple artists share a name.
 - Uses the Client Credentials flow, so it only accesses public catalog data — no playlists, saved albums, or user-specific data.
+- ⚠️ **Security note:** the Client Credentials token exchange runs entirely in the browser, so `VITE_CLIENT_SECRET` is visible in the network tab of anyone who opens the app. This is fine for local/personal use, but if you deploy this publicly, move the token exchange to a small backend or serverless function instead of exposing the secret client-side.
