@@ -10,7 +10,6 @@
 <p align="center">
   <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black">
   <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
 ---
